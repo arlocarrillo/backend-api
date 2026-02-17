@@ -1,38 +1,44 @@
 const pool = require('../config/db');
 
-const poblarProductos = async (request, response) => {
+const poblarTablaProductos = async (req, res) => {
+    const client = await pool.connect();
     try {
-        // Fetch FakeStoreApi
-        const apiFetch = await fetch('http://fakestoreapi.com/products');
-        const products = await apiFetch.json();
+        const respuesta = await fetch('https://fakestoreapi.com/products');
+        const datos = await respuesta.json();
+        
+        await client.query('BEGIN'); 
 
-        let inserciones = 0;
-        // Destructurar el objeto
-        for(const product of products){
-            const { title, price, description, image} = product;
-
-            const stock = Math.floor(Math.random() * 50) + 1;
-
-            const query = `
-                INSERT INTO productos
-                (nombre, precio, stock, descripcion, imagen_url)
-                VALUES ($1, $2, $3, $4, $5)
-            `
-
-            await pool.query(query, [title, price, stock, description, image]);
-
-            inserciones++;
-        }
-        response.status(200).json(
-            {
-                mensaje: "Carga masiva exitosa", 
-                cantidad: inserciones
+        for (const prod of datos) {
+            
+            let categoriaId;
+            const checkCat = await client.query('SELECT id FROM categorias WHERE nombre = $1', [prod.category]);
+            
+            if (checkCat.rows.length > 0) {
+                categoriaId = checkCat.rows[0].id;
+            } else {
+                const newCat = await client.query(
+                    'INSERT INTO categorias (nombre) VALUES ($1) RETURNING id', 
+                    [prod.category]
+                );
+                categoriaId = newCat.rows[0].id;
             }
-        );
+
+            await client.query(
+                `INSERT INTO productos (nombre, precio, stock, descripcion, imagen_url, categoria_id) 
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [prod.title, prod.price, 50, prod.description, prod.image, categoriaId]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ msg: 'Base de datos poblada con éxito' });
+
     } catch (error) {
-        console.log(`Error: ${error}`);
-        response.status(500).json({error: error.message})
+        await client.query('ROLLBACK');
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
     }
 };
 
-module.exports = { poblarProductos };
+module.exports = { poblarTablaProductos };
