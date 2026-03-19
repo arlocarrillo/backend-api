@@ -66,9 +66,24 @@ const getProductosPorCategoria = async (req, res) => {
     }
 };
 
+const CrearProducto = async (req, res) => {
+    const { nombre, precio, stock, imagen_url, descripcion, categoria_id, youtube_id } = req.body;
+    try {
+        const query = `
+            INSERT INTO productos (nombre, precio, stock, imagen_url, descripcion, categoria_id, youtube_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+        `;
+        const response = await pool.query(query, [nombre, precio, stock, imagen_url, descripcion, categoria_id, youtube_id]);
+        res.status(201).json(response.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al crear producto' });
+    }
+};
+
 module.exports = { 
     getProductos, 
     buscarProductos, 
     getProductoById, 
-    getProductosPorCategoria 
+    getProductosPorCategoria,
+    CrearProducto
 };
